@@ -12,24 +12,9 @@ logging.getLogger().setLevel('WARNING')
 
 
 """
-# start two processes from inside ipython3
+# start 49 processes from inside ipython3
 >>> import spin.examples.example as ex
->>> from multiprocessing import Process
->>> a = Process(target=ex.start_and_run, args=([('connect', 'tcp://127.0.0.1:9990'), ('bind', 'tcp://127.0.0.1:9991')], [10*[100*'AA_']]))
->>> a.start()
->>> b = Process(target=ex.start_and_run, args=([('connect', 'tcp://127.0.0.1:9991'), ('bind', 'tcp://127.0.0.1:9992')], [10*[100*'BB_']]))
->>> b.start()
->>> c = ex.Example([('connect', 'tcp://127.0.0.1:9992'), ('bind', 'tcp://127.0.0.1:9990')], [10*[100*'CC_']])
->>> import spin.utils
->>> spin.utils.set_asyncio_loop_in_inputhook()
->>>
-
-# start two objects in a single processes inside ipython3
->>> import spin.examples.example as ex
->>> a = ex.Example([('bind', 'tcp://127.0.0.1:9999')])
->>> b = ex.Example([('connect', 'tcp://127.0.0.1:9999')], [10*[100*'BBBB_']])
->>> import spin.utils
->>> spin.utils.set_asyncio_loop_in_inputhook()
+>>> c, processes = ex.start_many_process(50)
 
 """
 
@@ -41,30 +26,11 @@ def start_two():
     spin.utils.set_asyncio_loop_in_inputhook()
     return a, b
 
-def start_three():
 
+def start_three():
     a = Example([('bind', 'tcp://127.0.0.1:9990'), ('connect', 'tcp://127.0.0.1:9991')], 100*1000*'AAA_')
     b = Example([('bind', 'tcp://127.0.0.1:9991'), ('connect', 'tcp://127.0.0.1:9992')], 100*1000*'BBB_')
     c = Example([('bind', 'tcp://127.0.0.1:9992'), ('connect', 'tcp://127.0.0.1:9990')], 100*1000*'CCC_')
-
-    import spin.utils
-    spin.utils.set_asyncio_loop_in_inputhook()
-    return a, b, c
-
-def start_three_process():
-    from multiprocessing import Process
-    a = Process(
-            target=start_and_run,
-            args=([('bind', 'tcp://127.0.0.1:9990'), ('connect', 'tcp://127.0.0.1:9991')], 100*1000*'AAA_')
-        )
-    a.start()
-    b = Process(
-            target=start_and_run,
-            args=([('bind', 'tcp://127.0.0.1:9991'), ('connect', 'tcp://127.0.0.1:9992')], [10*[100*'BB_']])
-        )
-    b.start()
-    c = Example([('bind', 'tcp://127.0.0.1:9992'), ('connect', 'tcp://127.0.0.1:9990')], 100*1000*'CCC_')
-
     import spin.utils
     spin.utils.set_asyncio_loop_in_inputhook()
     return a, b, c
@@ -80,16 +46,15 @@ def start_many_process(N):
         conns = []
         for j in range(N):
             if i > j:
-                port = BASE_PORT+(i*N+j)%((N-1)*N+(N-1))
+                index = i*N+j
+                bind_or_connect = 'bind'
             elif i == j:
                 continue
             else:
-                port = BASE_PORT+(j*N+i)%((N-1)*N+(N-1))
-
-            if port in ports:
+                index = j*N+i
                 bind_or_connect = 'connect'
-            else:
-                bind_or_connect = 'bind'
+
+            port = BASE_PORT+index%((N-1)*N+(N-1))
             ports.append(port)
             conns.append(
                 (bind_or_connect, 'tcp://127.0.0.1:{}'.format(port))
@@ -98,18 +63,15 @@ def start_many_process(N):
         conns_list.append(conns)
 
     processes = []
-    for i in range(N):
+    for i in range(1, N):
         conns = conns_list[i]
-        if i == 0:
-            continue
-        else:
-            p = Process(
-                target=start_and_run,
-                args=(conns, 10*'{}_'.format(i))
-            )
-            p.start()
-            print(p)
-            processes.append(p)
+        p = Process(
+            target=start_and_run,
+            args=(conns, 10*'{:03d}_'.format(i))
+        )
+        p.start()
+        print(p)
+        processes.append(p)
 
     a = Example(conns_list[0], 10*'CC_'  )
     import spin.utils
