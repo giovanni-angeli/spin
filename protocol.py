@@ -153,8 +153,6 @@ class Protocol(aiozmq.ZmqProtocol):
     def close(self):
         if self.transport:
             self.transport.close()
-            #~ logging.warning('Protocol.close() deleting {}'.format(self.transport))
-            #~ del self.transport
 
 @asyncio.coroutine
 def build_protocols(app_instance, connections, zmq_type=zmq.PAIR):
