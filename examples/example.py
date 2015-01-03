@@ -11,6 +11,9 @@ import spin.utils
 #~ logging.getLogger().setLevel('INFO')
 logging.getLogger().setLevel('WARNING')
 
+FORMAT = "%(asctime)s:%(levelname)s:%(process)d:%(funcName)s():%(message)s"
+logging.basicConfig(format=FORMAT)
+
 
 """
 # start 49 processes from inside ipython3
@@ -21,30 +24,37 @@ logging.getLogger().setLevel('WARNING')
 
 
 def start_two():
-    a = Example([('bind', 'tcp://127.0.0.1:9999')])
-    b = Example([('connect', 'tcp://127.0.0.1:9999')], [10*[100*'BBBB_']])
+    a = Example([('bind', 'tcp://127.0.0.1:9999')], 'a')
+    b = Example([('connect', 'tcp://127.0.0.1:9999')], 'b', [10*[100*'BBBB_']])
     import spin.utils
     spin.utils.set_asyncio_loop_in_inputhook()
     return a, b
 
 
 def start_three():
-    a = Example([('bind', 'tcp://127.0.0.1:9990'), ('connect', 'tcp://127.0.0.1:9991')], 100*1000*'AAA_')
-    b = Example([('bind', 'tcp://127.0.0.1:9991'), ('connect', 'tcp://127.0.0.1:9992')], 100*1000*'BBB_')
-    c = Example([('bind', 'tcp://127.0.0.1:9992'), ('connect', 'tcp://127.0.0.1:9990')], 100*1000*'CCC_')
+    a = Example(
+        [('bind', 'tcp://127.0.0.1:9990'), ('connect', 'tcp://127.0.0.1:9991')],
+        'a', 100*1000*'AAA_')
+    b = Example(
+        [('bind', 'tcp://127.0.0.1:9991'), ('connect', 'tcp://127.0.0.1:9992')],
+        'b', 100*1000*'BBB_')
+    c = Example(
+        [('bind', 'tcp://127.0.0.1:9992'), ('connect', 'tcp://127.0.0.1:9990')],
+        'c', 100*1000*'CCC_')
     import spin.utils
     spin.utils.set_asyncio_loop_in_inputhook()
     return a, b, c
 
 
 def start_many_process(N):
-    BASE_PORT = 8000
+    PORT_MIN = 8000
+    PORT_MAX = 8000 + ((N-1)*N+(N-1))
     from multiprocessing import Process
     ports = []
-    port = BASE_PORT
-    conns_list = []
+    port = PORT_MIN
+    endpoints_list = []
     for i in range(N):
-        conns = []
+        endpoints = []
         for j in range(N):
             if i > j:
                 index = i*N+j
@@ -55,26 +65,28 @@ def start_many_process(N):
                 index = j*N+i
                 bind_or_connect = 'connect'
 
-            port = BASE_PORT+index%((N-1)*N+(N-1))
+            port = PORT_MIN + index % PORT_MAX
             ports.append(port)
-            conns.append(
-                (bind_or_connect, 'tcp://127.0.0.1:{}'.format(port))
+            endpoints.append(
+                #~ (bind_or_connect, 'tcp://127.0.0.1:{}'.format(port))
+                (bind_or_connect, 'ipc://{}'.format(port))
             )
-        print('%s, conns:%s'%(i, conns))
-        conns_list.append(conns)
+        print('%s, endpoints:%s'%(i, endpoints))
+        endpoints_list.append(endpoints)
 
     processes = []
     for i in range(1, N):
-        conns = conns_list[i]
+        endpoints = endpoints_list[i]
+        id = '{:03d}_'.format(i)
         p = Process(
             target=start_and_run,
-            args=(conns, 10*'{:03d}_'.format(i))
+            args=(endpoints, id, 10*id)
         )
         p.start()
         print(p)
         processes.append(p)
 
-    a = Example(conns_list[0], 10*'CC_'  )
+    a = Example(endpoints_list[0], '000', 10*'00_'  )
     import spin.utils
     spin.utils.set_asyncio_loop_in_inputhook()
 
@@ -83,48 +95,50 @@ def start_many_process(N):
 
 class Example(spin.application.Application):
 
-    def __init__(self, connections, data=[10*[100*'AAAA_']]):
-        super().__init__(connections)
+    def __init__(self, connections, id, data=[10*[100*'AAAA_']]):
+        super().__init__(connections, id)
         self.data = data
         self.send_data_task = spin.utils.call_periodically(10,
                                                          self.send_data)
 
-    def answer_handler(self, *args, **kwargs):
-        logging.info("{}.answer_handler() "
-                            "args({}):{}, kwargs({}):{}".format(
-                            self, len(args), args, len(args), kwargs)[:200])
 
-    def send_data(self, delay=-1):
+    def send_data(self):
 
-        args = json.dumps([])
-        kwargs = json.dumps({'data': self.data})
+        args = []
+        kwargs = {'data': self.data}
 
-        for p in self.protocols:
-            p.remote_call(
+        def answer_handler(*args, **kwargs):
+            logging.info("{} args({}):{}, kwargs({}):{}".format(
+                        self.id, len(args), args, len(kwargs), kwargs)[:200])
+
+        for id in self.remote_id2protocol.keys():
+            self.remote_call(
+                id,
                 'data_handler',
                 args,
                 kwargs,
-                self.answer_handler,
-                ttl=60,
-                serializer=lambda x:x
+                answer_handler,
+                ttl=20.,
             )
 
         return True
 
     def data_handler(self, *args, **kwargs):
 
-        data = str(kwargs.get('data'))
-        logging.info("data_handler() data({}):{}".format(
-                                                    len(data), data)[:200])
+        data = kwargs.get('data')
+        if data:
+            data = str(kwargs.get('data'))
+        logging.info("{} data({}):{}".format(
+                                            self.id, len(data), data)[:200])
 
-        return {'result': 'OK'}
+        return {'result': 'OK', 'len_of_data': len(data)}
 
 
-def start_and_run(connections=[('bind', 'tcp://127.0.0.1:9999')], data=[]):
+def start_and_run(connections=[('bind', 'tcp://127.0.0.1:9999')], id='a', data=[]):
 
     logging.warning('start_and_run() connections:{}'.format(connections))
 
-    a = Example(connections, data)
+    a = Example(connections, id, data)
     spin.utils.run_loop()
     return a
 

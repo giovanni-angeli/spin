@@ -3,6 +3,7 @@
 import asyncio
 import datetime
 import logging
+import json
 
 import spin.utils
 import spin.protocol
@@ -10,15 +11,14 @@ import spin.protocol
 
 class Application(object):
 
-    def __init__(self, connections):
+    def __init__(self, endpoints, id):
 
+        self.id = id
         self.protocols = []
+        self.remote_id2protocol = {}
 
-        coro = spin.protocol.build_protocols(self, connections)
+        coro = spin.protocol.build_protocols(self, endpoints)
         asyncio.async(coro)
-
-        self.heartbeat_task = spin.utils.call_periodically(10,
-                                                           self.send_heartbeat)
 
     def __del__(self):
         self.close()
@@ -27,24 +27,22 @@ class Application(object):
         for p in self.protocols:
             p.close()
 
-    def ping(self, *args, **kwargs):
-        logging.debug("[{}] ping() args:{}, kwargs:{}".format(
-            datetime.datetime.now(), args, kwargs)[:180])
-        return {'result': 'OK', 'percent': 100}
+    def remote_call(self,
+                    remote_id,
+                    remote_callable,
+                    args=[],
+                    kwargs={},
+                    answer_handler=None,
+                    ttl=30.,
+                    serializer=json.dumps,
+                    ):
 
-    def heartbeat_answer_handler(self, *args, **kwargs):
-        logging.info("{}.heartbeat_answer_handler() args:{}, kwargs:{}".format(
-            self, args, kwargs)[:180])
-        return 'DONE'
-
-    def send_heartbeat(self):
-        for p in self.protocols:
-            p.remote_call(
-                'ping',
-                [],
-                {},
-                self.heartbeat_answer_handler,
-                ttl=10.
-            )
-
-        return True
+        protocol = self.remote_id2protocol[remote_id]
+        protocol.remote_call(
+            remote_callable,
+            args,
+            kwargs,
+            answer_handler,
+            ttl,
+            serializer,
+        )
