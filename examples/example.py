@@ -18,7 +18,7 @@ logging.basicConfig(format=FORMAT)
 """
 # start 49 processes from inside ipython3
 >>> import spin.examples.example as ex
->>> c, processes = ex.start_many_process(50)
+>>> c, processes = ex.start_many_processes(50)
 
 """
 
@@ -46,7 +46,7 @@ def start_three():
     return a, b, c
 
 
-def start_many_process(N):
+def start_many_processes(N):
     PORT_MIN = 8000
     PORT_MAX = 8000 + ((N-1)*N+(N-1))
     from multiprocessing import Process
