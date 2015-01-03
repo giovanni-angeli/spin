@@ -15,18 +15,22 @@ import spin.utils
 
 class PendingCall(object):
 
-    def __init__(self, msg, answer_handler, ttl):
+    def __init__(self, msg, callback, ttl):
         self.t0 = time.time()
         self.msg = msg
-        self.answer_handler = answer_handler
+        self.callback = callback
         self.ttl = ttl
 
     def __str__(self):
-        return 'PendingCall[answer_handler:{}, timed_out:{}]'.format(
-            self.answer_handler, self.timed_out())
+        return 'PendingCall[callback:{}, timed_out:{}]'.format(
+            self.callback, self.timed_out())
 
     def timed_out(self):
-        return time.time() > self.t0 + self.ttl
+        ret = time.time() > self.t0 + self.ttl
+        if ret:
+            remote_id = self.msg[5]
+            self.callback('timed out', remote_id)
+        return ret
 
 
 class Protocol(aiozmq.ZmqProtocol):
@@ -40,19 +44,27 @@ class Protocol(aiozmq.ZmqProtocol):
         self._check_pending_calls_task = spin.utils.call_periodically(5,
                                                   self._check_pending_calls)
 
+        self.heartbeat_task = spin.utils.call_periodically(10,
+                                                           self._send_heartbeat)
+
     def connection_made(self, transport):
         self.transport = transport
         logging.debug(
-            '{}, '.format(transport.bindings())
+            '{}.connection_made() {}, '.format(self, transport.bindings())
             + '{}, '.format(transport.connections())
         )
 
     def connection_lost(self, exc):
         self.on_close.set_result(exc)
+        logging.warning('{}.connection_lost()'.format(self))
 
     def msg_received(self, msg):
         msg = [m.decode() for m in msg]
+        callable = msg[0]
         tok_id = msg[3]
+        remote_id = msg[5]
+        self.remote_id = remote_id
+        self.parent.remote_id2protocol[remote_id] = self
         try:
             if self.pendind_tok_ids.get(tok_id):
                 self._handle_remote_answer(msg)
@@ -62,7 +74,7 @@ class Protocol(aiozmq.ZmqProtocol):
             logging.warning(traceback.format_exc())
 
     def _check_pending_calls(self):
-        logging.info('[{}]{}._check_pending_calls() {} '.format(
+        logging.debug('[{}]{}._check_pending_calls() {} '.format(
                         os.getpid(), self, len(self.pendind_tok_ids.keys())))
 
         for tok_ids in [k for k in self.pendind_tok_ids.keys()][:]:
@@ -78,8 +90,10 @@ class Protocol(aiozmq.ZmqProtocol):
         args = msg[1]
         kwargs = msg[2]
         tok_id = msg[3]
-        if len(msg) > 4:
-            d = time.time() - float(msg[4])
+        expire_time = msg[4]
+
+        if expire_time:
+            d = time.time() - float(expire_time)
             if d > 0:
                 raise Exception('timed out d:{}'.format(d))
 
@@ -87,13 +101,20 @@ class Protocol(aiozmq.ZmqProtocol):
         kwargs = json.loads(kwargs)
 
         if callable:
-            ret = getattr(self.parent, callable)(*args, **kwargs)
+            if callable == '__heartbeat':
+                ret = {'result': 'OK'}
+            elif callable.startswith('__') and callable.endswith('__'):
+                ret = eval(callable.strip('__'))
+            else:
+                ret = eval('self.parent.%s(*args, **kwargs)' % callable)
             if ret:
                 answer = [
-                    ''            .encode('utf-8'),
-                    json.dumps([]).encode('utf-8'),
+                    ''             .encode('utf-8'),
+                    json.dumps([]) .encode('utf-8'),
                     json.dumps(ret).encode('utf-8'),
-                    tok_id        .encode('utf-8'),
+                    tok_id         .encode('utf-8'),
+                    ''             .encode('utf-8'),
+                    self.parent.id .encode('utf-8'),
                 ]
                 self.transport.write(answer)
 
@@ -111,7 +132,7 @@ class Protocol(aiozmq.ZmqProtocol):
         pending = kwargs.get('pending', 0)
 
         p = self.pendind_tok_ids[tok_id]
-        p.answer_handler(*args, **kwargs)
+        p.callback(self.remote_id, **kwargs)
 
         if not float(pending) > 0:
             self.pendind_tok_ids.pop(tok_id)
@@ -122,27 +143,28 @@ class Protocol(aiozmq.ZmqProtocol):
 
     def remote_call(self,
                     remote_callable,
-                    args=[],
-                    kwargs={},
-                    answer_handler=None,
-                    ttl=30.,
-                    serializer=json.dumps
+                    args,
+                    kwargs,
+                    answer_handler,
+                    ttl,
+                    serializer,
                     ):
 
-        logging.debug("{}.remote_call() {}, {}, {}, {}, "
-                                    "".format(self, remote_callable,
-                                    args, kwargs, answer_handler)[:100])
         now = time.time()
         tok_id = '{:.3f}_{:03d}'.format(now % 60, random.randint(1, 1000))
-        expire_time = '{:.3f}'.format(now+ttl)
-        msg = [
-            remote_callable   .encode('utf-8'),
-            serializer(args)  .encode('utf-8'),
-            serializer(kwargs).encode('utf-8'),
-            tok_id            .encode('utf-8'),
-            expire_time       .encode('utf-8'),
-        ]
         try:
+            expire_time = '{:.3f}'.format(now+ttl)
+            msg = [
+                remote_callable   .encode('utf-8'),
+                serializer(args)  .encode('utf-8'),
+                serializer(kwargs).encode('utf-8'),
+                tok_id            .encode('utf-8'),
+                expire_time       .encode('utf-8'),
+                self.parent.id    .encode('utf-8'),
+            ]
+
+            logging.debug("{}.remote_call() msg:{}".format(self, msg)[:200])
+
             if self.transport:
                 self.transport.write(msg)
                 if answer_handler:
@@ -154,6 +176,22 @@ class Protocol(aiozmq.ZmqProtocol):
     def close(self):
         if self.transport:
             self.transport.close()
+    def _handle_heartbeat(self, *args, **kwargs):
+        if args[0] == 'timed out':
+            remote_id = args[1]
+            if self.parent.remote_id2protocol.get(remote_id):
+                self.parent.remote_id2protocol.pop(remote_id)
+
+    def _send_heartbeat(self):
+        self.remote_call(
+            '__heartbeat',
+            [],
+            {},
+            self._handle_heartbeat,
+            ttl=10.,
+            serializer=json.dumps,
+        )
+        return True
 
 @asyncio.coroutine
 def build_protocols(app_instance, connections, zmq_type=zmq.PAIR):
