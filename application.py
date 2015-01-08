@@ -1,8 +1,6 @@
 # coding: utf-8
 
 import asyncio
-import datetime
-import logging
 import json
 
 import spin.utils

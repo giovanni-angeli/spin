@@ -1,7 +1,7 @@
 # coding: utf-8
 
 import logging
-import json
+import pprint
 
 import spin.application
 import spin.protocol
@@ -16,7 +16,7 @@ logging.basicConfig(format=FORMAT)
 
 
 """
-# start 49 processes from inside ipython3
+# start 49 more processes from inside ipython3
 >>> import spin.examples.example as ex
 >>> c, processes = ex.start_many_processes(50)
 
@@ -33,13 +33,16 @@ def start_two():
 
 def start_three():
     a = Example(
-        [('bind', 'tcp://127.0.0.1:9990'), ('connect', 'tcp://127.0.0.1:9991')],
+        [('bind', 'tcp://127.0.0.1:9990'),
+                                    ('connect', 'tcp://127.0.0.1:9991')],
         'a', 100*1000*'AAA_')
     b = Example(
-        [('bind', 'tcp://127.0.0.1:9991'), ('connect', 'tcp://127.0.0.1:9992')],
+        [('bind', 'tcp://127.0.0.1:9991'),
+                                    ('connect', 'tcp://127.0.0.1:9992')],
         'b', 100*1000*'BBB_')
     c = Example(
-        [('bind', 'tcp://127.0.0.1:9992'), ('connect', 'tcp://127.0.0.1:9990')],
+        [('bind', 'tcp://127.0.0.1:9992'),
+                                    ('connect', 'tcp://127.0.0.1:9990')],
         'c', 100*1000*'CCC_')
     import spin.utils
     spin.utils.set_asyncio_loop_in_inputhook()
@@ -47,9 +50,9 @@ def start_three():
 
 
 def start_many_processes(N):
-    PORT_MIN = 8000
-    PORT_MAX = 8000 + ((N-1)*N+(N-1))
-    from multiprocessing import Process
+
+    PORT_MIN = 10000
+    PORT_MAX = PORT_MIN + ((N-1)*N+(N-1))
     ports = []
     port = PORT_MIN
     endpoints_list = []
@@ -71,9 +74,12 @@ def start_many_processes(N):
                 #~ (bind_or_connect, 'tcp://127.0.0.1:{}'.format(port))
                 (bind_or_connect, 'ipc://{}'.format(port))
             )
-        print('%s, endpoints:%s'%(i, endpoints))
+        #~ logging.warning('{}, endpoints:{}'.format(i, endpoints))
+        pprint.pprint('{}, endpoints:'.format(i))
+        pprint.pprint(endpoints)
         endpoints_list.append(endpoints)
 
+    from multiprocessing import Process
     processes = []
     for i in range(1, N):
         endpoints = endpoints_list[i]
@@ -86,7 +92,7 @@ def start_many_processes(N):
         print(p)
         processes.append(p)
 
-    a = Example(endpoints_list[0], '000', 10*'00_'  )
+    a = Example(endpoints_list[0], '000', 10*'00_')
     import spin.utils
     spin.utils.set_asyncio_loop_in_inputhook()
 
@@ -100,7 +106,6 @@ class Example(spin.application.Application):
         self.data = data
         self.send_data_task = spin.utils.call_periodically(10,
                                                          self.send_data)
-
 
     def send_data(self):
 
@@ -134,9 +139,10 @@ class Example(spin.application.Application):
         return {'result': 'OK', 'len_of_data': len(data)}
 
 
-def start_and_run(connections=[('bind', 'tcp://127.0.0.1:9999')], id='a', data=[]):
+def start_and_run(connections=[('bind', 'tcp://127.0.0.1:9999')],
+                                                            id='a', data=[]):
 
-    logging.warning('start_and_run() connections:{}'.format(connections))
+    logging.info('start_and_run() connections:{}'.format(connections))
 
     a = Example(connections, id, data)
     spin.utils.run_loop()

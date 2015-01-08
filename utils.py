@@ -57,6 +57,3 @@ def set_asyncio_loop_in_inputhook(clock_resolution=None):
     from IPython.lib.inputhook import inputhook_manager
     inputhook_manager.set_inputhook(hook)
     loop._running = True
-
-
-

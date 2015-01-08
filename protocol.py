@@ -60,7 +60,6 @@ class Protocol(aiozmq.ZmqProtocol):
 
     def msg_received(self, msg):
         msg = [m.decode() for m in msg]
-        callable = msg[0]
         tok_id = msg[3]
         remote_id = msg[5]
         self.remote_id = remote_id
@@ -176,6 +175,7 @@ class Protocol(aiozmq.ZmqProtocol):
     def close(self):
         if self.transport:
             self.transport.close()
+
     def _handle_heartbeat(self, *args, **kwargs):
         if args[0] == 'timed out':
             remote_id = args[1]
@@ -192,6 +192,7 @@ class Protocol(aiozmq.ZmqProtocol):
             serializer=json.dumps,
         )
         return True
+
 
 @asyncio.coroutine
 def build_protocols(app_instance, connections, zmq_type=zmq.PAIR):
