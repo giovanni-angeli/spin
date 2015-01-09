@@ -19,6 +19,7 @@ class PendingCall(object):
         self.t0 = time.time()
         self.msg = msg
         self.callback = callback
+        self.callback_fired = False
         self.ttl = ttl
 
     def __str__(self):
@@ -27,8 +28,9 @@ class PendingCall(object):
 
     def timed_out(self):
         ret = time.time() > self.t0 + self.ttl
-        if ret:
+        if ret and not self.callback_fired:
             remote_id = self.msg[5]
+            self.callback_fired = True
             self.callback('timed out', remote_id)
         return ret
 
@@ -44,15 +46,15 @@ class Protocol(aiozmq.ZmqProtocol):
         self._check_pending_calls_task = spin.utils.call_periodically(5,
                                                   self._check_pending_calls)
 
-        self.heartbeat_task = spin.utils.call_periodically(10,
-                                                           self._send_heartbeat)
-
     def connection_made(self, transport):
         self.transport = transport
         logging.debug(
             '{}.connection_made() {}, '.format(self, transport.bindings())
             + '{}, '.format(transport.connections())
         )
+
+        self.heartbeat_task = spin.utils.call_periodically(10,
+                                                       self._send_heartbeat)
 
     def connection_lost(self, exc):
         self.on_close.set_result(exc)
