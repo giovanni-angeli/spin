@@ -27,17 +27,21 @@ def call_periodically(period, callable, *args, on_terminate=None):
     return tsk
 
 
-def run_loop():
+def run_loop(ttl=None):
 
     loop = asyncio.get_event_loop()
 
-    def ask_exit(sig):
+    if ttl:
+        ch = loop.call_later(ttl, loop.stop)
+        logging.warning("run_loop() ch:{}, ttl:{}".format(ch, ttl))
+
+    def sig_handler(sig):
         logging.debug("got signal {}; exit".format(sig))
         loop.stop()
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig,
-                                functools.partial(ask_exit, sig))
+                                functools.partial(sig_handler, sig))
 
     loop.run_forever()
 

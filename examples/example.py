@@ -9,7 +9,7 @@ import spin.utils
 
 #~ logging.getLogger().setLevel('DEBUG')
 #~ logging.getLogger().setLevel('INFO')
-logging.getLogger().setLevel('WARNING')
+#~ logging.getLogger().setLevel('WARNING')
 
 FORMAT = "%(asctime)s:%(levelname)s:%(process)d:%(funcName)s():%(message)s"
 logging.basicConfig(format=FORMAT)
@@ -49,12 +49,11 @@ def start_three():
     return a, b, c
 
 
-def start_many_processes(N):
+def start_many_processes(N, port_start=20000):
 
-    PORT_MIN = 10000
-    PORT_MAX = PORT_MIN + ((N-1)*N+(N-1))
+    port_max = port_start + ((N-1)*N+(N-1))
     ports = []
-    port = PORT_MIN
+    port = port_start
     endpoints_list = []
     for i in range(N):
         endpoints = []
@@ -68,11 +67,11 @@ def start_many_processes(N):
                 index = j*N+i
                 bind_or_connect = 'connect'
 
-            port = PORT_MIN + index % PORT_MAX
+            port = port_start + index % port_max
             ports.append(port)
             endpoints.append(
-                #~ (bind_or_connect, 'tcp://127.0.0.1:{}'.format(port))
-                (bind_or_connect, 'ipc://{}'.format(port))
+                (bind_or_connect, 'tcp://127.0.0.1:{}'.format(port))
+                #~ (bind_or_connect, 'ipc://{}'.format(port))
             )
         #~ logging.warning('{}, endpoints:{}'.format(i, endpoints))
         pprint.pprint('{}, endpoints:'.format(i))
@@ -101,16 +100,18 @@ def start_many_processes(N):
 
 class Example(spin.application.Application):
 
-    def __init__(self, connections, id, data=[10*[100*'AAAA_']]):
+    def __init__(self, connections, id, data=[10*[100*'DATUM_']]):
         super().__init__(connections, id)
         self.data = data
-        self.send_data_task = spin.utils.call_periodically(10,
+        self.send_data_task = spin.utils.call_periodically(5,
                                                          self.send_data)
 
     def send_data(self):
 
         args = []
         kwargs = {'data': self.data}
+
+        logging.info("{} {}".format(self.id, self.remote_id2protocol.keys()))
 
         def answer_handler(*args, **kwargs):
             logging.info("{} args({}):{}, kwargs({}):{}".format(
@@ -123,7 +124,7 @@ class Example(spin.application.Application):
                 args,
                 kwargs,
                 answer_handler,
-                ttl=20.,
+                ttl=5.,
             )
 
         return True
@@ -140,12 +141,14 @@ class Example(spin.application.Application):
 
 
 def start_and_run(connections=[('bind', 'tcp://127.0.0.1:9999')],
-                                                            id='a', data=[]):
+                                                    id='a', data=[], ttl=None):
 
-    logging.info('start_and_run() connections:{}'.format(connections))
+    logging.info('start_and_run() connections:{}, id:{}, ttl:{}'.format(
+                    connections, id, ttl))
 
     a = Example(connections, id, data)
-    spin.utils.run_loop()
+
+    spin.utils.run_loop(ttl)
     return a
 
 if __name__ == '__main__':
