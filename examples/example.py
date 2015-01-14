@@ -7,10 +7,6 @@ import spin.application
 import spin.protocol
 import spin.utils
 
-#~ logging.getLogger().setLevel('DEBUG')
-#~ logging.getLogger().setLevel('INFO')
-#~ logging.getLogger().setLevel('WARNING')
-
 FORMAT = "%(asctime)s:%(levelname)s:%(process)d:%(funcName)s():%(message)s"
 logging.basicConfig(format=FORMAT)
 
@@ -21,6 +17,60 @@ logging.basicConfig(format=FORMAT)
 >>> c, processes = ex.start_many_processes(50)
 
 """
+
+
+class Example(spin.application.Application):
+
+    def __init__(self, endpoints, id, data=[10*[100*'DATUM_']]):
+        super().__init__(endpoints, id)
+        self.data = data
+        self.send_data_task = spin.utils.call_periodically(5,
+                                                         self.send_data)
+
+    def send_data(self):
+
+        args = []
+        kwargs = {'data': self.data}
+
+        logging.info("{}.{} {}".format(self.id, self, self.remote_id2protocol.keys()))
+
+        def answer_handler(*args, **kwargs):
+            logging.info("{} args({}):{}, kwargs({}):{}".format(
+                        self.id, len(args), args, len(kwargs), kwargs)[:200])
+
+        for id in self.remote_id2protocol.keys():
+            self.remote_call(
+                id,
+                'data_handler',
+                args,
+                kwargs,
+                answer_handler,
+                ttl=5.,
+            )
+
+        return True
+
+    def data_handler(self, *args, **kwargs):
+
+        data = kwargs.get('data')
+        if data:
+            data = str(kwargs.get('data'))
+        logging.info("{} data({}):{}".format(
+                                            self.id, len(data), data)[:200])
+
+        return {'result': 'OK', 'len_of_data': len(data)}
+
+
+def start_and_run(endpoints=[('bind', 'tcp://127.0.0.1:9999')],
+                                                    id='a', data=[], ttl=None):
+
+    logging.info('start_and_run() endpoints:{}, id:{}, ttl:{}'.format(
+                    endpoints, id, ttl))
+
+    a = Example(endpoints, id, data)
+
+    spin.utils.run_loop(ttl)
+    return a
 
 
 def start_two():
@@ -98,58 +148,3 @@ def start_many_processes(N, port_start=20000):
     return a, processes
 
 
-class Example(spin.application.Application):
-
-    def __init__(self, connections, id, data=[10*[100*'DATUM_']]):
-        super().__init__(connections, id)
-        self.data = data
-        self.send_data_task = spin.utils.call_periodically(5,
-                                                         self.send_data)
-
-    def send_data(self):
-
-        args = []
-        kwargs = {'data': self.data}
-
-        logging.info("{} {}".format(self.id, self.remote_id2protocol.keys()))
-
-        def answer_handler(*args, **kwargs):
-            logging.info("{} args({}):{}, kwargs({}):{}".format(
-                        self.id, len(args), args, len(kwargs), kwargs)[:200])
-
-        for id in self.remote_id2protocol.keys():
-            self.remote_call(
-                id,
-                'data_handler',
-                args,
-                kwargs,
-                answer_handler,
-                ttl=5.,
-            )
-
-        return True
-
-    def data_handler(self, *args, **kwargs):
-
-        data = kwargs.get('data')
-        if data:
-            data = str(kwargs.get('data'))
-        logging.info("{} data({}):{}".format(
-                                            self.id, len(data), data)[:200])
-
-        return {'result': 'OK', 'len_of_data': len(data)}
-
-
-def start_and_run(connections=[('bind', 'tcp://127.0.0.1:9999')],
-                                                    id='a', data=[], ttl=None):
-
-    logging.info('start_and_run() connections:{}, id:{}, ttl:{}'.format(
-                    connections, id, ttl))
-
-    a = Example(connections, id, data)
-
-    spin.utils.run_loop(ttl)
-    return a
-
-if __name__ == '__main__':
-    start_and_run()

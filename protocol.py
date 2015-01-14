@@ -13,7 +13,7 @@ import traceback
 import spin.utils
 
 
-class PendingCall(object):
+class PendingDialog(object):
 
     def __init__(self, msg, callback, ttl):
         self.t0 = time.time()
@@ -23,7 +23,7 @@ class PendingCall(object):
         self.ttl = ttl
 
     def __str__(self):
-        return 'PendingCall[callback:{}, timed_out:{}]'.format(
+        return 'PendingDialog[callback:{}, timed_out:{}]'.format(
             self.callback, self.timed_out())
 
     def timed_out(self):
@@ -169,7 +169,7 @@ class Protocol(aiozmq.ZmqProtocol):
             if self.transport:
                 self.transport.write(msg)
                 if answer_handler:
-                    p = PendingCall(msg, answer_handler, ttl)
+                    p = PendingDialog(msg, answer_handler, ttl)
                     self.pendind_tok_ids[tok_id] = p
         except:
             logging.warning(traceback.format_exc())
