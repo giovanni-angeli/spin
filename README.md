@@ -9,10 +9,8 @@ spin can be used programmatically to develop a distributed system of
 applications communicating with each other, but also from inside ipython3
 to test/debug/verify etc. asyncio applications interactively.
 
-see examples/examples.py for some code illustrating how to use it; e.g. you
-can run, in one instance of IPython3:
-
-.. code-block:: python
+see examples/examples.py for some code illustrating how to use it; e.g.
+you can run, in one instance of IPython3:
 
     >>> import spin.examples.example as ex
     >>> e = ex.Example([('bind', 'tcp://127.0.0.1:9999')], 'example_000')
@@ -26,8 +24,6 @@ can run, in one instance of IPython3:
     ...
 
 then in another instance of IPython3 (another console):
-
-.. code-block:: python
 
     >>> import spin.examples.example as ex
     >>> e = ex.Example([('connect', 'tcp://127.0.0.1:9999')], 'example_001')
