@@ -11,17 +11,38 @@ FORMAT = "%(asctime)s:%(levelname)s:%(process)d:%(funcName)s():%(message)s"
 logging.basicConfig(format=FORMAT)
 
 
-"""
-# start 49 more processes from inside ipython3
->>> import spin.examples.example as ex
->>> c, processes = ex.start_many_processes(50)
-
+""" an example of a minmal application and of how to run it.
 """
 
 
 class Example(spin.application.Application):
 
-    def __init__(self, endpoints, id, data=[10*[100*'DATUM_']]):
+    """ a minimal example of an application.
+
+
+    It 'produces' mock data and sends them to all of the applications
+    connected to it, every 5 seconds. It implements also an handler to
+    receive data sent from peers.
+
+    """
+
+    def __init__(self, endpoints=[('bind', 'tcp://127.0.0.1:9999')],
+                                        id='example_001', data=10*['**',]):
+
+        """
+        Keyword arguments:
+        endpoints -- a list of couples of strings.
+            each couple has:
+                a first item that can be 'bind' or 'connect'
+                a second item tha specify a zmq protocol,
+                    i.e. 'tcp://127.0.0.1:9999'
+        id -- (str) the identifier of the instance. It is used to address
+            remote calls. each instance must have a unique id n the system.
+        data -- (a jsonifyable sequnce) the data that this instance will send
+            remotely.
+
+        """
+
         super().__init__(endpoints, id)
         self.data = data
         self.send_data_task = spin.utils.call_periodically(5,
@@ -32,7 +53,8 @@ class Example(spin.application.Application):
         args = []
         kwargs = {'data': self.data}
 
-        logging.info("{}.{} {}".format(self.id, self, self.remote_id2protocol.keys()))
+        logging.info("{}.{} {}".format(self.id, self,
+                                            self.remote_id2protocol.keys()))
 
         def answer_handler(*args, **kwargs):
             logging.info("{} args({}):{}, kwargs({}):{}".format(
@@ -64,6 +86,25 @@ class Example(spin.application.Application):
 def start_and_run(endpoints=[('bind', 'tcp://127.0.0.1:9999')],
                                                     id='a', data=[], ttl=None):
 
+    """ Create an instance of Example calss and start the asyncio loop.
+
+        Keyword arguments:
+        endpoints -- a list of couples of strings.
+            each couple has:
+                a first item that can be 'bind' or 'connect'
+                a second item tha specify a zmq protocol,
+                    i.e. 'tcp://127.0.0.1:9999'
+        id -- (str) the identifier of the instance. It is used to address
+            remote calls. each instance must have a unique id n the system.
+        data -- (a jsonifyable sequnce) the data that this instance will send
+            remotely.
+        ttl -- (float or None) the time to live of this process, None
+            means never.
+
+    It can be used to run different instances in different processes setting
+    the argument endpoints in a suitable way.
+    """
+
     logging.info('start_and_run() endpoints:{}, id:{}, ttl:{}'.format(
                     endpoints, id, ttl))
 
@@ -74,6 +115,19 @@ def start_and_run(endpoints=[('bind', 'tcp://127.0.0.1:9999')],
 
 
 def start_two():
+
+    """ creates two instance of Example calss inside IPython3
+
+    This is to be called from inside an IPython3 instance; Here, two instance
+    of the Example calss are created inside the same calling process, with a
+    zmq connection between them. Then the asyncio loop is embedded in Ipythn3
+    main loop.
+
+    After this it is possible to interact, via console, with the running
+    instances.
+
+    """
+
     a = Example([('bind', 'tcp://127.0.0.1:9999')], 'a')
     b = Example([('connect', 'tcp://127.0.0.1:9999')], 'b', [10*[100*'BBBB_']])
     import spin.utils
@@ -82,6 +136,18 @@ def start_two():
 
 
 def start_three():
+
+    """ creates three instance of Example calss inside IPython3
+
+    This is to be called from inside an IPython3 instance; In the same way as
+    for the *start_two()* function above, here we have three instances
+    fully meshed, inside the same process embedded inside IPython.
+
+    After this it is possible to interact, via console, with the running
+    instances.
+
+    """
+
     a = Example(
         [('bind', 'tcp://127.0.0.1:9990'),
                                     ('connect', 'tcp://127.0.0.1:9991')],
@@ -100,6 +166,27 @@ def start_three():
 
 
 def start_many_processes(N, port_start=20000):
+
+    """ Create 1 Example's instance inside IPython3 and N-1 external porcesses.
+
+
+    Keyword arguments:
+        N -- the total # of instances or processes.
+        port_start -- a number to be used a a start point to deine the tcp/ip
+            port numbers to be used. N(N-1)/2 ports will be used, in the range
+            port_start, port_start+N(N-1)/2
+
+    This is to be called from inside an IPython3 instance; It creates an
+    Example's instance inside the calling process (IPython) and spawn N-1 more
+    precesses instantiating one Example's instance each.
+    All the inastances are connected to each others and send and receive data.
+
+    After this it is possible to interact, via console, directly with the
+    instance running inside IPython, and thrgough it with the remote instances
+    too.
+
+    """
+
 
     port_max = port_start + ((N-1)*N+(N-1))
     ports = []
