@@ -23,7 +23,7 @@ you can run, in one instance of IPython3:
     2015-01-16 17:47:23,731:INFO:4452:answer_handler():example_000 args(1):('example_001',), kwargs(2):{'result': 'OK', 'len_of_data': 60}
     ...
 
-then in another instance of IPython3 (another console):
+while, in another instance of IPython3 (another console):
 
     >>> import spin.examples.example as ex
     >>> e = ex.Example([('connect', 'tcp://127.0.0.1:9999')], 'example_001')
@@ -37,5 +37,5 @@ then in another instance of IPython3 (another console):
     2015-01-16 17:47:28,701:INFO:4475:data_handler():example_001 data(60):['**', '**', '**', '**', '**', '**', '**', '**', '**', '**']
     ...
 
-and then you have two processes exchanging data among them and you can interact
-with the via its own IPython3 console.
+and then you have two processes exchanging data between them while you can
+interact with each one via the IPython3 console.
