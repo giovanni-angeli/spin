@@ -47,6 +47,10 @@ class Protocol(aiozmq.ZmqProtocol):
                                                   self._check_pending_calls)
 
     def connection_made(self, transport):
+
+        """ called by the transport level when connection is made.
+        """
+
         self.transport = transport
         logging.debug(
             '{}.connection_made() {}, '.format(self, transport.bindings())
@@ -57,10 +61,21 @@ class Protocol(aiozmq.ZmqProtocol):
                                                        self._send_heartbeat)
 
     def connection_lost(self, exc):
+
+        """ called by the transport level when connection is lost.
+
+        NOTE: ZMQ lib already handles all of the disconnect/reconnect stuff
+
+        """
+
         self.on_close.set_result(exc)
         logging.warning('{}.connection_lost()'.format(self))
 
     def msg_received(self, msg):
+
+        """ called by the transport level when message is received.
+        """
+
         msg = [m.decode() for m in msg]
         tok_id = msg[3]
         remote_id = msg[5]
@@ -148,8 +163,31 @@ class Protocol(aiozmq.ZmqProtocol):
                     kwargs,
                     answer_handler,
                     ttl,
-                    serializer,
                     ):
+
+        """ called by the application level to execute remote procedures.
+
+        arguments:
+
+        remote_callable -- (str) the method to be called on remote
+            component.
+
+        args -- (a jsonifyable list of objects) the args to be passed to
+            the remote method as arglist.
+
+        kwargs -- (a jsonifyable dict of objects) the args to be passed to
+            the remote method as keyword args.
+
+        answer_handler -- (a callable object) the callback, i.e. the function
+            to be called back when an answer to this call will be received. it
+            may be None
+
+        ttl -- time to live i.e. how long to wait for an answer to this call.
+            After ttl seconds since the call, if no answer has yet been
+            received, it is descarded emitting a warning.
+            Not used if answer_handler is None.
+
+        """
 
         now = time.time()
         tok_id = '{:.3f}_{:03d}'.format(now % 60, random.randint(1, 1000))
@@ -157,8 +195,8 @@ class Protocol(aiozmq.ZmqProtocol):
             expire_time = '{:.3f}'.format(now+ttl)
             msg = [
                 remote_callable   .encode('utf-8'),
-                serializer(args)  .encode('utf-8'),
-                serializer(kwargs).encode('utf-8'),
+                json.dumps(args)  .encode('utf-8'),
+                json.dumps(kwargs).encode('utf-8'),
                 tok_id            .encode('utf-8'),
                 expire_time       .encode('utf-8'),
                 self.parent.id    .encode('utf-8'),
@@ -191,7 +229,6 @@ class Protocol(aiozmq.ZmqProtocol):
             {},
             self._handle_heartbeat,
             ttl=10.,
-            serializer=json.dumps,
         )
         return True
 

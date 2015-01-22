@@ -6,28 +6,28 @@ import signal
 import logging
 
 
-def call_periodically(period, callable, *args, on_terminate=None):
+def call_periodically(period, to_be_called, *args, on_terminate=None):
 
     @asyncio.coroutine
-    def _call_periodically(callable, *args):
+    def _call_periodically(to_be_called, *args):
         while True:
-            r = callable(*args)
+            r = to_be_called(*args)
             if not r:
                 logging.warning('{} returned {}. stopping task.'.format(
-                                                            callable, r))
+                                                            to_be_called, r))
                 break
             yield from asyncio.sleep(period)
 
-    tsk = asyncio.async(_call_periodically(callable, *args))
+    tsk = asyncio.async(_call_periodically(to_be_called, *args))
 
-    if on_terminate:
+    if on_terminate is not None:
         tsk.add_done_callback(on_terminate)
 
     logging.info(tsk)
     return tsk
 
 
-def run_loop(ttl=None):
+def run_loop(ttl=None, stopper_signals=(signal.SIGINT, signal.SIGTERM)):
 
     loop = asyncio.get_event_loop()
 
@@ -39,7 +39,7 @@ def run_loop(ttl=None):
         logging.debug("got signal {}; exit".format(sig))
         loop.stop()
 
-    for sig in (signal.SIGINT, signal.SIGTERM):
+    for sig in stopper_signals:
         loop.add_signal_handler(sig,
                                 functools.partial(sig_handler, sig))
 

@@ -32,7 +32,6 @@ class Application(object):
                     kwargs={},
                     answer_handler=None,
                     ttl=30.,
-                    serializer=json.dumps,
                     ):
 
         protocol = self.remote_id2protocol[remote_id]
@@ -42,5 +41,4 @@ class Application(object):
             kwargs,
             answer_handler,
             ttl,
-            serializer,
         )
