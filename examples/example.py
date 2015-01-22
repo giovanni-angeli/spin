@@ -26,7 +26,7 @@ logging.basicConfig(format=FORMAT)
         2015-01-16 17:47:23,731:INFO:4452:answer_handler():example_000 args(1):('example_001',), kwargs(2):{'result': 'OK', 'len_of_data': 60}
         ...
 
-    then in another instance of IPython3 (another console):
+    whuile, in another instance of IPython3 (another console):
 
         >>> import spin.examples.example as ex
         >>> e = ex.Example([('connect', 'tcp://127.0.0.1:9999')], 'example_001')
@@ -40,8 +40,8 @@ logging.basicConfig(format=FORMAT)
         2015-01-16 17:47:28,701:INFO:4475:data_handler():example_001 data(60):['**', '**', '**', '**', '**', '**', '**', '**', '**', '**']
         ...
 
-    and then you have two processes exchanging data among them and you can interact
-    with the via its own IPython3 console.
+    and then you have two processes exchanging data between them while you can
+    interact with each one via the IPython3 console.
 
     More to read in the see the doc strings of *start_two()*,
     *start_three()*, *start_many_processes()*.
@@ -55,7 +55,7 @@ class Example(spin.application.Application):
 
 
     It 'produces' mock data and sends them to all of the applications
-    connected to it, every 5 seconds. It implements also an handler to
+    connected to it, every 5 seconds. It implements also a handler to
     receive data sent from peers.
 
     """
@@ -66,12 +66,12 @@ class Example(spin.application.Application):
         """
         Keyword arguments:
         endpoints -- a list of couples of strings.
-            each couple has:
-                a first item that can be 'bind' or 'connect'
-                a second item tha specify a zmq protocol,
-                    i.e. 'tcp://127.0.0.1:9999'
+            each couple contains:
+                a first item that can be 'bind' or 'connect',
+                a second item specifying a zmq protocol+addr,
+                    i.e.: 'tcp://127.0.0.1:9999'.
         id -- (str) the identifier of the instance. It is used to address
-            remote calls. each instance must have a unique id n the system.
+            remote calls. Each instance must have a unique id in the system.
         data -- (a jsonifyable sequnce) the data that this instance will send
             remotely.
 
